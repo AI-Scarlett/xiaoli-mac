@@ -1,0 +1,35 @@
+# Swift / SwiftPM
+.build/
+.swiftpm/
+*.xcodeproj/
+*.xcworkspace/
+DerivedData/
+xcuserdata/
+
+# macOS
+.DS_Store
+*.swp
+*~
+
+# 编辑器
+.idea/
+.vscode/
+*.iml
+
+# 临时
+*.log
+/tmp/
+*.tmp
+
+# 不要把构建产物提交进来
+/Packages/
+*.xccheckout
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# 用户本地配置
+.env
+.env.local
