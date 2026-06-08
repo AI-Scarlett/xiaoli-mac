@@ -3,10 +3,10 @@ import AppKit
 
 // MARK: - 月历面板（仿小历紧凑样式）
 //
-// 顶部：< 2026 / 6 >
+// 头部：< 2026 / 6 > （年份/月份都可点开 picker）
 // 周表头：M T W T F S S
 // 网格：阳历日（大）+ 农历/节日/节气（小）
-// 状态条：⚙ 设置 | 当前日期 + 第N周 + 农历 | X 关闭
+// 状态条：⚙ 设置 | ● 当前月份的第N周 + 农历 | X 关闭
 //
 struct CalendarPanelView: View {
     @ObservedObject var settings: AppSettings
@@ -23,6 +23,14 @@ struct CalendarPanelView: View {
         return cal
     }
 
+    /// 是否正在查看本月（用于决定是否显示"今天"按钮）
+    private var isShowingCurrentMonth: Bool {
+        let now = Date()
+        let cal = Calendar.current
+        return cal.component(.year, from: now) == displayedYear
+            && cal.component(.month, from: now) == displayedMonth
+    }
+
     var body: some View {
         VStack(spacing: 6) {
             header
@@ -34,36 +42,115 @@ struct CalendarPanelView: View {
         .padding(.vertical, 8)
     }
 
-    // MARK: 头部
+    // MARK: 头部（年份/月份都做成可点击 picker）
     private var header: some View {
-        HStack {
+        HStack(spacing: 2) {
+            // 上一月箭头
             Button { shiftMonth(-1) } label: {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 13, weight: .semibold))
-                    .frame(width: 24, height: 24)
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 22, height: 22)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(.primary)
+            .help("上个月")
 
-            Spacer()
+            // 年份 picker
+            yearMenu
 
-            Text("\(displayedYear) / \(displayedMonth)")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.primary)
-                .monospacedDigit()
+            Text("/")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.secondary)
 
-            Spacer()
+            // 月份 picker
+            monthMenu
 
+            // 下一月箭头
             Button { shiftMonth(1) } label: {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .frame(width: 24, height: 24)
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 22, height: 22)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(.primary)
+            .help("下个月")
+
+            // 跳到今天
+            if !isShowingCurrentMonth {
+                Button {
+                    goToToday()
+                } label: {
+                    Text("今天")
+                        .font(.system(size: 10, weight: .medium))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule().fill(Color.accentColor.opacity(0.15))
+                        )
+                        .foregroundStyle(Color.accentColor)
+                }
+                .buttonStyle(.plain)
+                .help("回到本月")
+            }
         }
+    }
+
+    private var yearMenu: some View {
+        Menu {
+            // 年份范围：当前年 ±50
+            let now = Calendar.current.component(.year, from: Date())
+            ForEach((now - 50)...(now + 50), id: \.self) { year in
+                Button {
+                    displayedYear = year
+                } label: {
+                    HStack {
+                        Text("\(year) 年")
+                        if year == displayedYear {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            Text("\(displayedYear)")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.primary)
+                .monospacedDigit()
+                .padding(.horizontal, 4)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.visible)
+        .fixedSize()
+    }
+
+    private var monthMenu: some View {
+        Menu {
+            ForEach(1...12, id: \.self) { m in
+                Button {
+                    displayedMonth = m
+                } label: {
+                    HStack {
+                        Text("\(m) 月")
+                        if m == displayedMonth {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            Text("\(displayedMonth)")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.primary)
+                .monospacedDigit()
+                .padding(.horizontal, 4)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.visible)
+        .fixedSize()
     }
 
     // MARK: 周表头（M T W T F S S）
@@ -167,7 +254,8 @@ struct CalendarPanelView: View {
                 .fill(Color.accentColor)
                 .frame(width: 5, height: 5)
 
-            Text(currentStatusText())
+            // 状态文字 —— 跟随查看的月份
+            Text(currentMonthSummary())
                 .font(.system(size: 11))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
@@ -206,6 +294,13 @@ struct CalendarPanelView: View {
         displayedYear = y
     }
 
+    private func goToToday() {
+        let now = Date()
+        let cal = Calendar.current
+        displayedYear = cal.component(.year, from: now)
+        displayedMonth = cal.component(.month, from: now)
+    }
+
     private func lunarLabel(info: DayInfo) -> String {
         if let term = info.solarTerm { return term }
         if let h = info.solarHoliday { return h }
@@ -219,8 +314,7 @@ struct CalendarPanelView: View {
 
     /// 周表头 M T W T F S S（图里是英文单字母）
     private func orderedWeekdaySymbols() -> [String] {
-        // 默认周一开头
-        let start = calendar.firstWeekday - 1   // 0 for Monday
+        let start = calendar.firstWeekday - 1
         let symbols = ["M", "T", "W", "T", "F", "S", "S"]
         return Array(symbols[start..<symbols.count] + symbols[0..<start])
     }
@@ -256,7 +350,6 @@ struct CalendarPanelView: View {
             id += 1
         }
 
-        // 补齐 6 行
         while cells.count < 42 {
             cells.append(DayCell(id: id, info: nil))
             id += 1
@@ -265,18 +358,22 @@ struct CalendarPanelView: View {
         return cells
     }
 
-    private func currentStatusText() -> String {
-        let now = Date()
+    /// 状态条文字 —— 显示"查看的这个月"的中段信息（不是今天）
+    private func currentMonthSummary() -> String {
         let greg = Calendar(identifier: .gregorian)
-        let lunar = LunarCalendar.lunarInfo(for: now)
-        let month = greg.component(.month, from: now)
-        let day = greg.component(.day, from: now)
-        let weekOfYear = greg.component(.weekOfYear, from: now)
-        let week = greg.component(.weekday, from: now)
+        // 找这个月第 15 天作为代表（肯定存在）
+        let midDate = greg.date(from: DateComponents(year: displayedYear, month: displayedMonth, day: 15)) ?? Date()
+        let lunar = LunarCalendar.lunarInfo(for: midDate)
+        let month = greg.component(.month, from: midDate)
+        let week = greg.component(.weekday, from: midDate)
         let weekdayChars = ["日", "一", "二", "三", "四", "五", "六"]
         let weekdayChar = weekdayChars[week - 1]
 
-        let lunarText = lunar?.displayText ?? ""
-        return "\(month)月\(day)日 第\(weekOfYear)周 \(weekdayChar) \(lunarText)"
+        // 用"月份" + "季节性"概述
+        let ganzhiMonth = lunar?.ganzhiMonth ?? ""
+        let ganzhiYear = lunar?.ganzhiYear ?? ""
+        let zodiac = lunar?.zodiac ?? ""
+
+        return "\(month)月 \(ganzhiYear)年【\(zodiac)】\(ganzhiMonth)月"
     }
 }

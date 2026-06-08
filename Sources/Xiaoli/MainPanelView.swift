@@ -83,12 +83,13 @@ struct MainPanelView: View {
             // 底部按钮
             HStack {
                 Spacer()
-                Button("还原默认设置") {
+                Button("全部还原默认") {
                     // 重置为默认值
                     if let bundleID = Bundle.main.bundleIdentifier {
                         UserDefaults.standard.removePersistentDomain(forName: bundleID)
                     }
                 }
+                .foregroundStyle(.secondary)
             }
             .font(.system(size: 11))
             .padding(10)
