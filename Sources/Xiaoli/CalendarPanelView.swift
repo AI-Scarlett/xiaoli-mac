@@ -188,19 +188,21 @@ struct CalendarPanelView: View {
         let hasLunarHoliday = info.lunarHoliday != nil
         let hasAnyHoliday = hasSolarTerm || hasSolarHoliday || hasLunarHoliday
 
+        // 阳历日颜色：全部跟随系统语义色
+        // 不读用户的 normalDayR/G/B —— 那些值是设计来配"自定义暗色面板"的，
+        // 在当前跟系统走的浅色面板下会变成白字白底（用户看不见）
         let dayColor: Color = {
-            if isToday { return .white }   // 大字"9"在蓝底上保持白色（粗体醒目，对比度好）
-            if weekend { return settings.color(r: settings.weekendR, g: settings.weekendG, b: settings.weekendB) }
-            if hasAnyHoliday { return settings.color(r: settings.holidayR, g: settings.holidayG, b: settings.holidayB) }
-            return settings.color(r: settings.normalDayR, g: settings.normalDayG, b: settings.normalDayB)
+            if isToday { return .white }   // 蓝底大字：白色（粗体醒目）
+            if hasAnyHoliday { return Color.accentColor }   // 节日/节气日：accent 色
+            if weekend { return Color(nsColor: .secondaryLabelColor) }   // 周末：次要色
+            return .primary   // 普通日期：主色
         }()
 
         let labelColor: Color = {
             if isToday { return .black.opacity(0.75) }   // 蓝底小字：深色更清晰
             if hasSolarTerm { return Color.accentColor }
             if hasAnyHoliday { return Color.accentColor }   // 节日：完整的 accentColor
-            // 普通日期的农历/日名：跟随系统的"次要文字色"
-            return Color(nsColor: .secondaryLabelColor)
+            return Color(nsColor: .secondaryLabelColor)   // 普通日期的农历/日名：系统次要色
         }()
 
         return VStack(spacing: 0) {
