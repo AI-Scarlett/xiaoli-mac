@@ -197,8 +197,8 @@ struct CalendarPanelView: View {
 
         let labelColor: Color = {
             if isToday { return .white.opacity(0.9) }
-            if hasSolarTerm { return settings.color(r: settings.holidayR, g: settings.holidayG, b: settings.holidayB) }
-            if hasAnyHoliday { return settings.color(r: settings.holidayR, g: settings.holidayG, b: settings.holidayB).opacity(0.9) }
+            if hasSolarTerm { return Color.accentColor }
+            if hasAnyHoliday { return Color.accentColor.opacity(0.85) }
             return .secondary
         }()
 

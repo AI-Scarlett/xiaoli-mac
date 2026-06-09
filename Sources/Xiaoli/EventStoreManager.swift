@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import EventKit
 
 // MARK: - 事件管理
@@ -37,6 +38,24 @@ final class EventStoreManager: ObservableObject {
                 }
             }
         }
+    }
+
+    /// 状态机判定：
+    /// - notDetermined：还没问过 → 应该弹系统授权框
+    /// - denied / restricted：拒绝过 → 只能去"系统设置"里开
+    /// - fullAccess / authorized：已授权
+    var canRequestViaSystem: Bool {
+        authStatus == .notDetermined
+    }
+
+    var isGranted: Bool {
+        authStatus == .fullAccess || authStatus == .authorized
+    }
+
+    /// 打开"系统设置 → 隐私 → 日历"
+    func openSystemPrivacySettings() {
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")!
+        NSWorkspace.shared.open(url)
     }
 
     /// 获取某一天的所有事件

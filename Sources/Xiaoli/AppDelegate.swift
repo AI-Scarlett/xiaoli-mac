@@ -88,6 +88,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let popover = NSPopover()
         popover.behavior = .transient   // 关键：点别处自动消失
         popover.animates = true
+        popover.appearance = nil        // 跟随系统
         // 内容高度由 SwiftUI 自适应；宽度固定
         popover.contentSize = NSSize(width: 320, height: 360)
 
@@ -117,6 +118,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         win.isReleasedWhenClosed = false
         win.level = .floating
         win.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        win.appearance = nil   // 跟随系统
         win.center()
 
         win.contentView = NSHostingView(rootView: MainPanelView(
@@ -160,6 +162,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         win.isReleasedWhenClosed = false
         win.level = .floating
         win.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        // 关键：跟随系统外观（不要被自己设的 NSAppearance 锁住）
+        win.appearance = nil
 
         win.contentView = NSHostingView(rootView: DateDetailView(
             date: date,

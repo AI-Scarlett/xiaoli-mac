@@ -4,8 +4,8 @@ import EventKit
 
 // MARK: - 日期详情面板
 //
-// 左侧：日期信息卡(农历、干支、节气、节日...) 
-// 右侧：事件列表 + 新建按钮
+// 配色策略：完全跟随系统（系统浅色 → 浅色，系统暗色 → 暗色）
+// 不用任何用户自定义的颜色，避免对比度对不上
 //
 struct DateDetailView: View {
     let date: Date
@@ -20,29 +20,24 @@ struct DateDetailView: View {
     private var info: DayInfo { DayInfoBuilder.build(for: date) }
     private var greg: Calendar { Calendar(identifier: .gregorian) }
 
+    /// 系统色：背景/分隔线等"环境色"用 NSColor
+    private var bgColor: Color { Color(nsColor: .windowBackgroundColor) }
+    private var panelBg: Color { Color(nsColor: .controlBackgroundColor) }
+    private var dividerColor: Color { Color(nsColor: .separatorColor) }
+
     var body: some View {
         HStack(spacing: 0) {
             infoCard
                 .frame(width: 280)
-            Divider()
+                .background(bgColor)
+            Divider().background(dividerColor)
             eventsPanel
                 .frame(width: 280)
+                .background(bgColor)
         }
         .frame(width: 562, height: 380)
-        .background(settings.color(r: settings.panelBgR, g: settings.panelBgG, b: settings.panelBgB))
-        .onAppear {
-            // 第一次进详情窗：主动请求权限(如果还没授权) 
-            Task {
-                if eventStore.authStatus == .notDetermined {
-                    _ = await eventStore.requestAccess()
-                }
-                refresh()
-            }
-        }
+        .onAppear { refresh() }
     }
-
-    // 局部 settings(用静态值) 
-    private var settings: AppSettings { AppSettings() }
 
     // MARK: - 左侧信息卡
     private var infoCard: some View {
@@ -63,10 +58,11 @@ struct DateDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     // 大字日期 + 农历
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 4) {
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Text("\(info.solarMonth)月\(info.solarDay)日")
                                 .font(.system(size: 22, weight: .bold))
+                                .foregroundStyle(.primary)
                             Text(weekdayString(info.solarWeekday))
                                 .font(.system(size: 13))
                                 .foregroundStyle(.secondary)
@@ -75,6 +71,7 @@ struct DateDetailView: View {
                             HStack(spacing: 6) {
                                 Text("\(l.ganzhiYear)年【\(l.zodiac)】")
                                     .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(.primary)
                                 Text(l.displayText)
                                     .font(.system(size: 12))
                                     .foregroundStyle(.secondary)
@@ -83,7 +80,7 @@ struct DateDetailView: View {
                         // 节气 / 节日
                         if info.hasAnyHoliday {
                             Text(info.holidaySummary)
-                                .font(.system(size: 11))
+                                .font(.system(size: 11, weight: .medium))
                                 .foregroundStyle(Color.accentColor)
                                 .padding(.top, 2)
                         }
@@ -91,12 +88,14 @@ struct DateDetailView: View {
                     .padding(.horizontal, 16)
                     .padding(.bottom, 12)
 
-                    Divider().background(Color.white.opacity(0.1))
+                    Rectangle()
+                        .fill(dividerColor)
+                        .frame(height: 1)
 
                     // 信息条目
                     VStack(alignment: .leading, spacing: 0) {
                         if let l = info.lunar {
-                            infoRow("年", value: "\(l.ganzhiYear)年(\(l.zodiac) 年) ")
+                            infoRow("年", value: "\(l.ganzhiYear)年 (\(l.zodiac)年)")
                             infoRow("月", value: "\(l.ganzhiMonth)月")
                             infoRow("日", value: "\(l.ganzhiDay)日")
                             infoRow("纳音", value: l.naYin)
@@ -113,11 +112,12 @@ struct DateDetailView: View {
                             infoRow("农历节日", value: h, highlight: true)
                         }
 
-                        Divider()
-                            .background(Color.white.opacity(0.1))
+                        Rectangle()
+                            .fill(dividerColor)
+                            .frame(height: 1)
                             .padding(.vertical, 8)
 
-                        // 黄历字段(待补数据) 
+                        // 黄历字段（待补数据）
                         groupTitle("黄历")
                         placeholderRow("宜")
                         placeholderRow("忌")
@@ -126,7 +126,7 @@ struct DateDetailView: View {
                         placeholderRow("胎神")
                         placeholderRow("财位")
                         placeholderRow("星宿")
-                        Text("(宜忌等数据需配合查表，后续接入) ")
+                        Text("宜忌等数据需配合查表，后续接入")
                             .font(.system(size: 9))
                             .foregroundStyle(.tertiary)
                             .padding(.top, 4)
@@ -179,6 +179,7 @@ struct DateDetailView: View {
             HStack {
                 Text("事件")
                     .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.primary)
                 Spacer()
                 Button {
                     Task { await ensureAuthAndShowNew() }
@@ -197,24 +198,39 @@ struct DateDetailView: View {
             .padding(.top, 10)
 
             // 授权状态
-            if eventStore.authStatus != .fullAccess && eventStore.authStatus != .authorized {
-                VStack(spacing: 8) {
+            if !eventStore.isGranted {
+                VStack(spacing: 10) {
                     Image(systemName: "calendar.badge.exclamationmark")
                         .font(.system(size: 28))
                         .foregroundStyle(.secondary)
-                    Text(eventStore.authStatus == .notDetermined
-                         ? "准备请求日历访问权限..."
-                         : "需要日历访问权限")
-                        .font(.system(size: 12))
+                    Text(eventStore.canRequestViaSystem
+                         ? "需要日历访问权限"
+                         : "日历访问权限被拒绝")
+                        .font(.system(size: 12, weight: .medium))
                         .multilineTextAlignment(.center)
-                    if eventStore.authStatus != .notDetermined {
+                    Text(eventStore.canRequestViaSystem
+                         ? "点击下方按钮授予访问日历的权限"
+                         : "请在「系统设置 → 隐私与安全性 → 日历」中开启")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 16)
+
+                    if eventStore.canRequestViaSystem {
                         Button("授权") {
                             Task {
                                 _ = await eventStore.requestAccess()
                                 refresh()
                             }
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                    } else {
+                        Button("打开系统设置") {
+                            eventStore.openSystemPrivacySettings()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -246,14 +262,14 @@ struct DateDetailView: View {
 
     private func eventRow(_ event: EKEvent) -> some View {
         HStack(alignment: .top, spacing: 8) {
-            // 颜色点
             Circle()
-                .fill(Color(cgColor: event.calendar?.cgColor ?? CGColor(red: 0.4, green: 0.6, blue: 0.9, alpha: 1)) ?? .blue)
+                .fill(Color(nsColor: event.calendar?.color ?? .systemBlue))
                 .frame(width: 8, height: 8)
                 .padding(.top, 4)
             VStack(alignment: .leading, spacing: 2) {
-                Text(event.title ?? "(无标题) ")
+                Text(event.title ?? "(无标题)")
                     .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.primary)
                     .lineLimit(2)
                 if event.isAllDay {
                     Text("全天")
@@ -270,7 +286,7 @@ struct DateDetailView: View {
         .padding(8)
         .background(
             RoundedRectangle(cornerRadius: 6)
-                .fill(Color.white.opacity(0.05))
+                .fill(panelBg)
         )
     }
 
@@ -318,11 +334,17 @@ struct DateDetailView: View {
     }
 
     private func ensureAuthAndShowNew() async {
-        if eventStore.authStatus != .fullAccess && eventStore.authStatus != .authorized {
-            _ = await eventStore.requestAccess()
-        }
-        if eventStore.authStatus == .fullAccess || eventStore.authStatus == .authorized {
+        if eventStore.isGranted {
             showNewEventSheet = true
+            return
+        }
+        if eventStore.canRequestViaSystem {
+            _ = await eventStore.requestAccess()
+            if eventStore.isGranted {
+                showNewEventSheet = true
+            }
+        } else {
+            eventStore.openSystemPrivacySettings()
         }
     }
 
