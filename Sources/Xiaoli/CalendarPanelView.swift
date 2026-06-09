@@ -189,17 +189,18 @@ struct CalendarPanelView: View {
         let hasAnyHoliday = hasSolarTerm || hasSolarHoliday || hasLunarHoliday
 
         let dayColor: Color = {
-            if isToday { return .white }
+            if isToday { return .white }   // 大字"9"在蓝底上保持白色（粗体醒目，对比度好）
             if weekend { return settings.color(r: settings.weekendR, g: settings.weekendG, b: settings.weekendB) }
             if hasAnyHoliday { return settings.color(r: settings.holidayR, g: settings.holidayG, b: settings.holidayB) }
             return settings.color(r: settings.normalDayR, g: settings.normalDayG, b: settings.normalDayB)
         }()
 
         let labelColor: Color = {
-            if isToday { return .white.opacity(0.9) }
+            if isToday { return .black.opacity(0.75) }   // 蓝底小字：深色更清晰
             if hasSolarTerm { return Color.accentColor }
-            if hasAnyHoliday { return Color.accentColor.opacity(0.85) }
-            return .secondary
+            if hasAnyHoliday { return Color.accentColor }   // 节日：完整的 accentColor
+            // 普通日期的农历/日名：跟随系统的"次要文字色"
+            return Color(nsColor: .secondaryLabelColor)
         }()
 
         return VStack(spacing: 0) {
